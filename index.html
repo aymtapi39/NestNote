@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NestNote</title>
+    <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1&display=swap" rel="stylesheet" />
+    <style>
+        body {
+            font-family: 'Shippori Mincho B1', serif;
+        }
+
+        .bookshelf {
+            width: 100%;
+            min-height: 150px;
+            background-color: #f5f5f5;
+            padding: 16px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .book-spine {
+            padding: 7px;
+            background-color: #d8d8d8;
+            writing-mode: vertical-rl;
+            text-align: center;
+            cursor: pointer;
+            height: 310px;
+            width: 48px;
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+            letter-spacing: -0.5em;
+        }
+
+        .book-title {
+            font-size: 1.3em;
+            letter-spacing: 0.1em;
+            color: #3b3b3b;
+        }
+
+        .book-author {
+            font-size: 1.0em;
+            letter-spacing: 0.2em;
+            color: #555;
+        }
+
+        .bookMemoContent {
+            margin-top: 24px;
+            padding: 16px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            min-height: 150px;
+            font-size: 1.1em;
+            max-width: 100%;
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-y: auto;
+            max-height: 300px;
+        }
+
+        .memo-actions {
+            margin-top: 8px;
+        }
+
+        .memo-actions button {
+            font-family: 'Shippori Mincho B1', serif;
+            font-size: 1em;
+            padding: 6px 12px;
+            margin-right: 8px;
+            cursor: pointer;
+        }
+
+        .memo-form {
+            margin-top: 32px;
+        }
+
+        input[type="text"],
+        textarea {
+            width: 100%;
+            padding: 8px;
+            font-family: 'Shippori Mincho B1', serif;
+            font-size: 1em;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            margin-top: 4px;
+        }
+
+        button {
+            font-family: 'Shippori Mincho B1', serif;
+            font-size: 1em;
+            padding: 6px 12px;
+            margin-right: 8px;
+        }
+
+        /* スマホレイアウト */
+        @media (max-width: 600px) {
+            .book-spine {
+                width: 36px;
+                height: 240px;
+                font-size: 0.9em;
+            }
+
+            .bookMemoContent {
+                font-size: 1em;
+                max-height: 200px;
+            }
+
+            button,
+            input[type="text"],
+            textarea {
+                font-size: 1.1em;
+                padding: 8px;
+            }
+
+            .memo-form {
+                margin-top: 24px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="bookshelf"></div>
+    <div class="bookMemoContent"></div>
+    <div class="memo-actions"></div>
+
+    <div class="memo-form">
+        <label>
+            タイトル<br />
+            <input type="text" id="memoTitleInput" />
+        </label>
+        <br /><br />
+        <label>
+            著者名<br />
+            <input type="text" id="memoAuthorInput" />
+        </label>
+        <br /><br />
+        <label>
+            本文<br />
+            <textarea id="memoContentInput" rows="4" cols="40"></textarea>
+        </label>
+        <br /><br />
+        <button id="addMemoButton">追加</button>
+        <button id="updateMemoButton" style="display: none;">更新</button>
+        <button id="cancelEditButton" style="display: none;">キャンセル</button>
+    </div>
+
+    <script>
+        const LOCAL_STORAGE_KEY = 'nestNoteMemos';
+        let bookMemoDatas = [];
+        let editingIndex = null;
+
+        const bookshelf = document.querySelector('.bookshelf');
+        const memoContent = document.querySelector('.bookMemoContent');
+        const memoActions = document.querySelector('.memo-actions');
+        const titleInput = document.getElementById('memoTitleInput');
+        const authorInput = document.getElementById('memoAuthorInput');
+        const contentInput = document.getElementById('memoContentInput');
+        const addButton = document.getElementById('addMemoButton');
+        const updateButton = document.getElementById('updateMemoButton');
+        const cancelButton = document.getElementById('cancelEditButton');
+
+        function saveToLocalStorage() {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(bookMemoDatas));
+        }
+
+        function loadFromLocalStorage() {
+            const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+            return stored ? JSON.parse(stored) : [];
+        }
+
+        function createBookSpine(data, index) {
+            const spine = document.createElement('div');
+            spine.className = 'book-spine';
+
+            const title = document.createElement('div');
+            title.className = 'book-title';
+            title.textContent = data.bookTitle;
+
+            const author = document.createElement('div');
+            author.className = 'book-author';
+            author.textContent = data.author;
+
+            spine.appendChild(title);
+            spine.appendChild(author);
+
+            spine.addEventListener('click', () => {
+                memoContent.textContent = data.content;
+                memoActions.innerHTML = `
+                    <button onclick="editMemo(${index})">更新</button>
+                    <button onclick="deleteMemo(${index})">削除</button>
+                `;
+            });
+
+            return spine;
+        }
+
+        function renderBookshelf() {
+            bookshelf.innerHTML = '';
+            bookMemoDatas.forEach((data, index) => {
+                const spine = createBookSpine(data, index);
+                bookshelf.appendChild(spine);
+            });
+        }
+
+        function editMemo(index) {
+            const memo = bookMemoDatas[index];
+            titleInput.value = memo.bookTitle;
+            authorInput.value = memo.author;
+            contentInput.value = memo.content;
+            editingIndex = index;
+
+            addButton.style.display = 'none';
+            updateButton.style.display = 'inline';
+            cancelButton.style.display = 'inline';
+        }
+
+        function deleteMemo(index) {
+            if (!confirm('本当に削除しますか？')) return;
+            bookMemoDatas.splice(index, 1);
+            saveToLocalStorage();
+            renderBookshelf();
+            memoContent.textContent = '';
+            memoActions.innerHTML = '';
+            editingIndex = null;
+            addButton.style.display = 'inline';
+            updateButton.style.display = 'none';
+            cancelButton.style.display = 'none';
+        }
+
+        updateButton.addEventListener('click', () => {
+            if (editingIndex === null) return;
+
+            const updatedMemo = {
+                bookTitle: titleInput.value.trim(),
+                author: authorInput.value.trim(),
+                content: contentInput.value.trim()
+            };
+
+            if (!updatedMemo.bookTitle || !updatedMemo.author || !updatedMemo.content) {
+                alert('未入力があります');
+                return;
+            }
+
+            bookMemoDatas[editingIndex] = updatedMemo;
+            saveToLocalStorage();
+            renderBookshelf();
+            memoContent.textContent = '';
+            memoActions.innerHTML = '';
+            editingIndex = null;
+
+            titleInput.value = '';
+            authorInput.value = '';
+            contentInput.value = '';
+            addButton.style.display = 'inline';
+            updateButton.style.display = 'none';
+            cancelButton.style.display = 'none';
+        });
+
+        cancelButton.addEventListener('click', () => {
+            titleInput.value = '';
+            authorInput.value = '';
+            contentInput.value = '';
+            editingIndex = null;
+            addButton.style.display = 'inline';
+            updateButton.style.display = 'none';
+            cancelButton.style.display = 'none';
+        });
+
+        addButton.addEventListener('click', () => {
+            const newMemo = {
+                bookTitle: titleInput.value.trim(),
+                author: authorInput.value.trim(),
+                content: contentInput.value.trim()
+            };
+
+            if (!newMemo.bookTitle || !newMemo.author || !newMemo.content) {
+                alert('未入力があります');
+                return;
+            }
+
+            bookMemoDatas.push(newMemo);
+            saveToLocalStorage();
+            renderBookshelf();
+
+            titleInput.value = '';
+            authorInput.value = '';
+            contentInput.value = '';
+        });
+
+        bookMemoDatas = loadFromLocalStorage();
+        renderBookshelf();
+
+        window.editMemo = editMemo;
+        window.deleteMemo = deleteMemo;
+    </script>
+</body>
+
+</html>
